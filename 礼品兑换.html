@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>礼品提货兑换</title>
+<!-- 引入邮件推送必备SDK -->
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
+<style>
+/* 基础重置与背景 */
+body {
+    background: linear-gradient(135deg, #f4f6f9 0%, #ffffff 100%);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 16px;
+    padding: 20px 15px;
+    margin: 0;
+    min-height: 100vh;
+    color: #333;
+}
+
+/* 主容器卡片化 */
+.box {
+    max-width: 420px;
+    margin: 0 auto;
+    background: #fff;
+    padding: 25px 20px;
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.06);
+    position: relative;
+    border-top: 5px solid #e61a1a;
+}
+
+.title {
+    text-align: center;
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 20px;
+    color: #1a1a1a;
+    letter-spacing: 1px;
+}
+
+.sub-title {
+    font-size: 15px;
+    color: #666;
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+/* 表单输入框优化 */
+input, textarea {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 14px 16px;
+    margin: 8px 0;
+    border: 1px solid #eaeaea;
+    background-color: #fafbfc;
+    border-radius: 10px;
+    font-size: 15px;
+    color: #333;
+    transition: all 0.3s ease;
+    outline: none;
+}
+
+input:focus, textarea:focus {
+    border-color: #ff4b4b;
+    background-color: #fff;
+    box-shadow: 0 0 0 3px rgba(238, 9, 121, 0.1);
+}
+
+textarea { resize: none; }
+
+/* 按钮炫酷渐变与交互 */
+button {
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(135deg, #ff4b4b, #e61a1a);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: 17px;
+    font-weight: 600;
+    margin-top: 15px;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(230, 26, 26, 0.3);
+    transition: all 0.2s ease;
+}
+
+button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(230, 26, 26, 0.4);
+}
+
+.hide { display: none; }
+
+/* ★ 套餐选择优化：改成一排展示2个 */
+.package-wrap {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin: 20px 0;
+}
+
+.package-item {
+    background: #fff;
+    border: 3px solid #f0f0f0;
+    border-radius: 10px;
+    padding: 5px; 
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.package-item:hover { border-color: #ff9d9d; }
+
+.package-item.active {
+    border-color: #e61a1a;
+    background: #fffafa;
+}
+
+.package-item.active::after {
+    content: '已选';
+    position: absolute;
+    top: 0;
+    right: 0;
+    background: #e61a1a;
+    color: #fff;
+    font-size: 12px;
+    padding: 4px 8px;
+    border-bottom-left-radius: 8px;
+    border-top-right-radius: 6px;
+    font-weight: bold;
+}
+
+.package-item img {
+    width: 100%;
+    height: auto; 
+    display: block;
+    border-radius: 6px;
+}
+
+/* 地址省市区三联排 */
+.address-group { display: flex; gap: 8px; }
+.address-group input { flex: 1; text-align: center; padding: 14px 8px; }
+
+/* 商家后台区块 */
+.order-box {
+    max-width: 420px;
+    margin: 40px auto 20px;
+    background: #fdfdfd;
+    padding: 20px;
+    border-radius: 15px;
+    border: 1px dashed #ccc;
+}
+.order-box .title { font-size: 16px; color: #888; margin-bottom: 15px; }
+.order-item { background: #f5f5f5; padding: 15px; border-radius: 10px; margin-bottom: 10px; font-size: 14px; line-height: 1.6; color: #555; }
+.used { color: #999; text-decoration: line-through; margin-left: 5px; }
+</style>
+</head>
+<body>
+
+<div class="box">
+  <div class="title">尊享礼品提货中心</div>
+  
+  <!-- 第一步：卡号密码登录 -->
+  <div id="loginBox">
+    <div class="sub-title">请验证您的兑换卡密</div>
+    <input type="text" id="cardno" placeholder="输入18位卡号" maxlength="18">
+    <input type="password" id="pwd" placeholder="输入8位卡密" maxlength="8">
+    <button onclick="checkCard()">立即验证</button>
+  </div>
+
+  <!-- 第二步：选择套餐 -->
+  <div id="packageBox" class="hide">
+    <div class="title" style="font-size:18px; margin-bottom: 5px;">请点击选择以下套餐</div>
+    <div class="sub-title" style="font-size:13px; color:#e61a1a;">（仅限选1个，点击图片即可选中）</div>
+    
+    <div class="package-wrap">
+      <div class="package-item" data-pkg="A套餐" onclick="selectPkg(this)">
+        < img src="A.jpg" alt="A套餐">
+      </div>
+      <div class="package-item" data-pkg="B套餐" onclick="selectPkg(this)">
+        < img src="B.jpg" alt="B套餐">
+      </div>
+      <div class="package-item" data-pkg="C套餐" onclick="selectPkg(this)">
+        < img src="C.jpg" alt="C套餐">
+      </div>
+      <div class="package-item" data-pkg="D套餐" onclick="selectPkg(this)">
+        < img src="D.jpg" alt="D套餐">
+      </div>
+    </div>
+    <button onclick="goFillInfo()">已选好，填写收货地址</button>
+  </div>
+
+  <!-- 第三步：填写收货信息 -->
+  <div id="formBox" class="hide">
+    <div class="title" style="font-size:18px">填写收货信息</div>
+    <input type="text" placeholder="收货人真实姓名" id="name">
+    <input type="tel" placeholder="联系电话（11位手机号）" id="phone" maxlength="11">
+    
+    <div class="address-group">
+      <input type="text" placeholder="省份" id="province">
+      <input type="text" placeholder="城市" id="city">
+      <input type="text" placeholder="区/县" id="area">
+    </div>
+    
+    <textarea placeholder="详细街道、门牌号" id="detailAddr" rows="3"></textarea>
+    <button onclick="submitOrder()">确认无误，提交发货</button>
+  </div>
+</div>
+
+<!-- 商家后台 -->
+<div class="order-box">
+  <div class="title">- 内部展示：商家兑换记录 -</div>
+  <div id="orderList">
+    <div style="text-align:center;color:#ccc;font-size:13px;padding:10px 0;">暂无订单记录</div>
+  </div>
+</div>
+
+<script>
+// ---------- JS 逻辑 ----------
+emailjs.init("3xQ7Z8Y9kL2mR1tA5bC6dE7fG"); // 你的测试公钥保留
+
+// 完整的 150 个账号密码库
+var cardList = {
+"202605051234568001":"857316At",
+"202605051234568002":"140269Ch",
+"202605051234568003":"903582Dv",
+"202605051234568004":"268147Nf",
+"202605051234568005":"571930Su",
+"202605051234568006":"324691Eh",
+"202605051234568007":"695213Wl",
+"202605051234568008":"418075Hg",
+"202605051234568009":"783620Zj",
+"202605051234568010":"025491Xb",
+"202605051234568011":"869135Yc",
+"202605051234568012":"192740Pn",
+"202605051234568013":"930657Va",
+"202605051234568014":"274189Rq",
+"202605051234568015":"526014Ki",
+"202605051234568016":"309572Uw",
+"202605051234568017":"651849Bo",
+"202605051234568018":"473201Fe",
+"202605051234568019":"729568Lm",
+"202605051234568020":"094315Gs",
+"202605051234568021":"812570Zn",
+"202605051234568022":"146938Qx",
+"202605051234568023":"975102Jp",
+"202605051234568024":"231865Ar",
+"202605051234568025":"568041Th",
+"202605051234568026":"390724Ch",
+"202605051234568027":"685193Dv",
+"202605051234568028":"452670Nf",
+"202605051234568029":"701983Su",
+"202605051234568030":"038526Eh",
+"202605051234568031":"845719Wl",
+"202605051234568032":"120645Hg",
+"202605051234568033":"958371Zj",
+"202605051234568034":"217509Xb",
+"202605051234568035":"534268Yc",
+"202605051234568036":"361095Pn",
+"202605051234568037":"647821Va",
+"202605051234568038":"493157Rq",
+"202605051234568039":"716402Ki",
+"202605051234568040":"062934Uw",
+"202605051234568041":"897051Bo",
+"202605051234568042":"163582Fe",
+"202605051234568043":"910247Lm",
+"202605051234568044":"259713Gs",
+"202605051234568045":"513480Zn",
+"202605051234568046":"348617Qx",
+"202605051234568047":"670159Jp",
+"202605051234568048":"405923Ar",
+"202605051234568049":"791360Th",
+"202605051234568050":"016752Cy",
+"202605051234568051":"592713Js",
+"202605051234568052":"804629xQ",
+"202605051234568053":"173508GZ",
+"202605051234568054":"926041mP",
+"202605051234568055":"351872Ak",
+"202605051234568056":"610957tB",
+"202605051234568057":"247390Cy",
+"202605051234568058":"735168Dr",
+"202605051234568059":"480259Nh",
+"202605051234568060":"069317Sv",
+"202605051234568061":"852940Ef",
+"202605051234568062":"137625Wu",
+"202605051234568063":"905481Hd",
+"202605051234568064":"261730Lz",
+"202605051234568065":"574092Xg",
+"202605051234568066":"318564Yj",
+"202605051234568067":"690215Pb",
+"202605051234568068":"425870Vc",
+"202605051234568069":"713946Rn",
+"202605051234568070":"058123Ka",
+"202605051234568071":"941750Uq",
+"202605051234568072":"286307Bi",
+"202605051234568073":"159246Fw",
+"202605051234568074":"830671Lo",
+"202605051234568075":"507139Ge",
+"202605051234568076":"362485Zm",
+"202605051234568077":"649017Qs",
+"202605051234568078":"415392Jn",
+"202605051234568079":"782605Ax",
+"202605051234568080":"024968Tp",
+"202605051234568081":"861537Cr",
+"202605051234568082":"197254Dh",
+"202605051234568083":"934081Nv",
+"202605051234568084":"275610Sf",
+"202605051234568085":"528396Eu",
+"202605051234568086":"301745Wh",
+"202605051234568087":"659128Hl",
+"202605051234568088":"470563Zg",
+"202605051234568089":"723819Xj",
+"202605051234568090":"096472Yb",
+"202605051234568091":"815206Pc",
+"202605051234568092":"143795Vn",
+"202605051234568093":"972061Ra",
+"202605051234568094":"238540Kq",
+"202605051234568095":"560189Ui",
+"202605051234568096":"394721Bw",
+"202605051234568097":"681350Fo",
+"202605051234568098":"457902Le",
+"202605051234568099":"702638Gm",
+"202605051234568100":"035814Zs",
+"202605051234568101":"846192Qn",
+"202605051234568102":"129573Jx",
+"202605051234568103":"953047Ap",
+"202605051234568104":"214685Tr",
+"202605051234568105":"537920Ch",
+"202605051234568106":"380156Dv",
+"202605051234568107":"625741Nf",
+"202605051234568108":"491308Su",
+"202605051234568109":"758263Eh",
+"202605051234568110":"071495Wl",
+"202605051234568111":"893620Hg",
+"202605051234568112":"165087Zj",
+"202605051234568113":"917432Xb",
+"202605051234568114":"250971Yc",
+"202605051234568115":"516834Pn",
+"202605051234568116":"349207Va",
+"202605051234568117":"671590Rq",
+"202605051234568118":"408315Ki",
+"202605051234568119":"795026Uw",
+"202605051234568120":"012659Bo",
+"202605051234568121":"874361Fe",
+"202605051234568122":"186402Lm",
+"202605051234568123":"961753Gs",
+"202605051234568124":"223168Zn",
+"202605051234568125":"541072Qx",
+"202605051234568126":"335914Jp",
+"202605051234568127":"608427Ar",
+"202605051234568128":"432195Th",
+"202605051234568129":"769530Cv",
+"202605051234568130":"087246Df",
+"202605051234568131":"820953Nu",
+"202605051234568132":"115369Sh",
+"202605051234568133":"984275El",
+"202605051234568134":"290731Wg",
+"202605051234568135":"553608Hj",
+"202605051234568136":"312457Zb",
+"202605051234568137":"637082Xc",
+"202605051234568138":"465129Yn",
+"202605051234568139":"740351Pa",
+"202605051234568140":"049587Vq",
+"202605051234568141":"881642Ri",
+"202605051234568142":"102893Kw",
+"202605051234568143":"927516Uo",
+"202605051234568144":"246058Be",
+"202605051234568145":"589371Fm",
+"202605051234568146":"371265Ls",
+"202605051234568147":"614903Gn",
+"202605051234568148":"428750Zx",
+"202605051234568149":"736184Qp",
+"202605051234568150":"051927Jr"
+};
+
+var usedCard = [];
+var selectPackage = "";
+var nowCard = "";
+
+function checkCard(){
+  let c = document.getElementById("cardno").value.trim();
+  let p = document.getElementById("pwd").value.trim();
+  if(usedCard.includes(c)){
+    alert("该卡号已兑换过，无法再次使用");
+    return;
+  }
+  if(c.length !== 18){
+    alert("请输入18位卡号");
+    return;
+  }
+  if(p.length !== 8){
+    alert("请输入8位卡密");
+    return;
+  }
+  if(cardList[c] && cardList[c] === p){
+    nowCard = c;
+    document.getElementById("loginBox").classList.add("hide");
+    document.getElementById("packageBox").classList.remove("hide");
+    window.scrollTo(0,0);
+  }else{
+    alert("卡号或密码错误");
+  }
+}
+
+function selectPkg(el){
+  document.querySelectorAll(".package-item").forEach(item=>{
+    item.classList.remove("active");
+  });
+  el.classList.add("active");
+  selectPackage = el.dataset.pkg;
+}
+
+function goFillInfo(){
+  if(!selectPackage){
+    alert("请先点击图片选择一个套餐哦~");
+    return;
+  }
+  document.getElementById("packageBox").classList.add("hide");
+  document.getElementById("formBox").classList.remove("hide");
+  window.scrollTo(0,0);
+}
+
+function submitOrder(){
+  let name = document.getElementById("name").value.trim();
+  let phone = document.getElementById("phone").value.trim();
+  let province = document.getElementById("province").value.trim();
+  let city = document.getElementById("city").value.trim();
+  let area = document.getElementById("area").value.trim();
+  let detailAddr = document.getElementById("detailAddr").value.trim();
+
+  if(!/^1\d{10}$/.test(phone)){
+    alert("请输入正确的11位手机号码");
+    return;
+  }
+  if(!name || !province || !city || !area || !detailAddr){
+    alert("请将收货信息填写完整！");
+    return;
+  }
+
+  let fullAddr = province + city + area + detailAddr;
+  usedCard.push(nowCard);
+
+  let orderBox = document.getElementById("orderList");
+  if(orderBox.innerText.includes("暂无订单记录")) orderBox.innerHTML = "";
+  
+  let orderHtml = orderBox.innerHTML;
+  orderHtml += `
+  <div class="order-item">
+    <div style="font-weight:bold;color:#111;margin-bottom:5px;">套餐：${selectPackage}</div>
+    <div>卡号：<span class="used">${nowCard}</span></div>
+    <div>收件：
+𝑛
+𝑎
+𝑚
+𝑒
+(
+name({phone})</div>
+    <div>地址：${fullAddr}</div>
+  </div>
+  `;
+  orderBox.innerHTML = orderHtml;
+
+  sendOrderMail(nowCard,selectPackage,name,phone,fullAddr);
+
+  alert("🎉 兑换提交成功，稍后将为您安排发货！");
+  location.reload(); 
+}
+
+function sendOrderMail(card,pkg,name,phone,addr){
+  let params = {
+    to_email: "1915549793@qq.com",
+    card_no: card,
+    package_name: pkg,
+    user_name: name,
+    user_phone: phone,
+    user_addr: addr
+  };
+  emailjs.send("service_mail2026","template_order",params);
+}
+</script>
+</body>
+</html>
