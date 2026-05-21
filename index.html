@@ -4,8 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <title>礼品提货兑换</title>
-<!-- 引入邮件推送必备SDK -->
-<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
 <style>
 /* 基础重置与背景 */
 body {
@@ -89,7 +87,11 @@ button:hover {
     transform: translateY(-2px);
     box-shadow: 0 6px 20px rgba(230, 26, 26, 0.4);
 }
-
+button:disabled {
+    opacity: 0.6;
+    transform: none;
+    cursor: not-allowed;
+}
 .hide { display: none; }
 
 /* ★ 套餐选择优化：改成一排展示2个 */
@@ -205,7 +207,7 @@ button:hover {
     </div>
     
     <textarea placeholder="详细街道、门牌号" id="detailAddr" rows="3"></textarea>
-    <button onclick="submitOrder()">确认无误，提交发货</button>
+    <button id="submitBtn" onclick="submitOrder()">确认无误，提交发货</button>
   </div>
 </div>
 
@@ -218,10 +220,12 @@ button:hover {
 </div>
 
 <script>
-// ---------- JS 逻辑 ----------
-emailjs.init("3xQ7Z8Y9kL2mR1tA5bC6dE7fG"); // 你的测试公钥保留
+// ==================== Web3Forms 配置 ====================
+// 请替换成您自己的 Access Key 和接收邮箱
+const WEB3FORMS_ACCESS_KEY = "e80bcb61-3def-457e-bce1-7bf859bcbcf0";  // 替换为您申请到的 Key
+const RECEIVER_EMAIL = "1915549793@qq.com";                            // 替换为您自己的 QQ 邮箱
 
-// 完整的 150 个账号密码库
+// ==================== 150 组卡密库 ====================
 var cardList = {
 "202605051234568001":"857316At",
 "202605051234568002":"140269Ch",
@@ -422,7 +426,55 @@ function goFillInfo(){
   window.scrollTo(0,0);
 }
 
-function submitOrder(){
+// 使用 Web3Forms 发送邮件
+async function sendOrderEmail(card, pkg, name, phone, fullAddr) {
+  // 构建邮件内容
+  const subject = `🎁 礼品兑换订单 - ${pkg}`;
+  const message = `
+    兑换卡号: ${card}
+    所选套餐: ${pkg}
+    收货人: ${name}
+    联系电话: ${phone}
+    收货地址: ${fullAddr}
+    提交时间: ${new Date().toLocaleString()}
+  `;
+  
+  const formData = {
+    access_key: WEB3FORMS_ACCESS_KEY,
+    to: RECEIVER_EMAIL,
+    subject: subject,
+    message: message,
+    from_name: "礼品兑换系统",
+    // 可选防垃圾
+    botcheck: ""
+  };
+  
+  try {
+    const response = await fetch("https://api.web3forms.com/submit", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json"
+      },
+      body: JSON.stringify(formData)
+    });
+    const result = await response.json();
+    if (result.success) {
+      console.log("邮件发送成功");
+      return true;
+    } else {
+      console.error("邮件发送失败:", result);
+      alert("邮件通知发送失败，但订单已记录。请联系客服。");
+      return false;
+    }
+  } catch (error) {
+    console.error("请求异常:", error);
+    alert("网络错误，邮件未发送，但订单已记录。");
+    return false;
+  }
+}
+
+async function submitOrder(){
   let name = document.getElementById("name").value.trim();
   let phone = document.getElementById("phone").value.trim();
   let province = document.getElementById("province").value.trim();
@@ -442,42 +494,33 @@ function submitOrder(){
   let fullAddr = province + city + area + detailAddr;
   usedCard.push(nowCard);
 
+  // 更新商家后台记录
   let orderBox = document.getElementById("orderList");
   if(orderBox.innerText.includes("暂无订单记录")) orderBox.innerHTML = "";
   
-  let orderHtml = orderBox.innerHTML;
-  orderHtml += `
+  let orderHtml = `
   <div class="order-item">
     <div style="font-weight:bold;color:#111;margin-bottom:5px;">套餐：${selectPackage}</div>
     <div>卡号：<span class="used">${nowCard}</span></div>
-    <div>收件：
-𝑛
-𝑎
-𝑚
-𝑒
-(
-name({phone})</div>
+    <div>收件：${name} (${phone})</div>
     <div>地址：${fullAddr}</div>
+    <div style="font-size:12px; color:#666; margin-top:5px;">提交于 ${new Date().toLocaleString()}</div>
   </div>
   `;
-  orderBox.innerHTML = orderHtml;
-
-  sendOrderMail(nowCard,selectPackage,name,phone,fullAddr);
-
-  alert("🎉 兑换提交成功，稍后将为您安排发货！");
+  orderBox.innerHTML = orderHtml + orderBox.innerHTML; // 最新在上方
+  
+  // 禁用提交按钮避免重复提交
+  const btn = document.getElementById("submitBtn");
+  btn.disabled = true;
+  btn.innerText = "提交中...";
+  
+  // 发送邮件（不阻塞界面）
+  await sendOrderEmail(nowCard, selectPackage, name, phone, fullAddr);
+  
+  alert("🎉 兑换提交成功，商家将尽快安排发货！");
+  
+  // 重置整个流程，回到卡密登录界面
   location.reload(); 
-}
-
-function sendOrderMail(card,pkg,name,phone,addr){
-  let params = {
-    to_email: "1915549793@qq.com",
-    card_no: card,
-    package_name: pkg,
-    user_name: name,
-    user_phone: phone,
-    user_addr: addr
-  };
-  emailjs.send("service_mail2026","template_order",params);
 }
 </script>
 </body>
